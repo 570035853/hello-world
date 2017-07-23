@@ -1,0 +1,1852 @@
+84563106 B-N7577
+
+svn merge 操作指南
+
+创建： jing lv，最新修改： tian haining 于 四月 23, 2015 转至元数据起始
+应用场景：小Y同学一直在分支pitaya_bugfix上开发，现在需要将pitaya_bugfix分支的代码 reintegrate到主分支 pitaya上，最终保证两个branch上的代码完全相同。
+实现步骤：
+0) 准备工作
+	
+	检出最新代码
+	svn co $path $dest
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya/ /Users/admin/Project/pitaya_res/
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya_dkjh/ /Users/admin/Project/pitaya_dkjh_res/
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya_bugfix/ /Users/admin/Project/pitaya_bugfix_res/
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya_paytype/ /Users/admin/Project/pitaya_paytype_res/
+
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya_web_account/ /Users/admin/Project/pitaya_web_account_res/
+	svn co http://10.10.1.254:8001/svn/yyh/pitaya_project_publish/ /Users/admin/Project/pitaya_project_publish_res/
+
+	svn co http://10.10.1.254:8001/svn/yyh/summer_DAOK_2093 /Users/admin/Project/summer_DAOK_2093
+	svn co http://10.10.1.254:8001/svn/yyh/summer_DAOK_2093 /Users/admin/Project/summer_DAOK_2093_res
+
+	svn merge http://10.10.1.254:8001/svn/yyh/summer
+
+	进入工作目录
+	cd $dest
+	更新代码至最新版本
+	svn up
+	查看历史信息（目的是确认本次merge的版本范围）
+	svn log -l $num
+	
+	1) 先进入本地的pitaya_bugfix目录，将主分支pitaya的代码merge到工作分支pitaya_bugfix
+	cd pitaya_bugfix
+	svn merge $branch_main
+	(在本场景中，小Y同学在terminal输入“svn merge http://10.10.1.254:8001/svn/yyh/pitaya/”)
+	可能出现以下两种执行结果：
+	
+	1.1）merge成功，木有conflict，直接提交
+		svn ci -m "merge from main branch pitaya@5449  
+		  
+	1.2) 遇到conflict，需要先清理所有的conflict，再提交代码
+	
+	查看修改状态
+	svn status
+	对于所有标“C”的文件，vi进入并编辑冲突
+	vi $conflictfile
+	搜索冲突的部分，在vi中输入/开启搜索
+	/====
+	(出现冲突的部分，以====隔开)
+	编辑冲突并退出vi
+	将conflict标记为已解决
+	svn resolve --accept working $file
+	所有conflict已清除，提交代码
+	svn ci -m "merge from main branch pitaya@4379" 
+
+C    daokoudai-model/src/main/java/com/pitaya/daokoudai/loan/service/LoanReturnManager.java  
+	
+2) 进入主分支目录pitaya，执行reintegrate
+	cd pitaya
+	svn up
+	svn merge --reintegrate $branch_work	 ( svn merge --reintegrate http://10.10.1.254:8001/svn/yyh/pitaya_bugfix/ )  
+	
+	由于上一步已经清除了全部的conflict，所以这次merge不应再发现任何conflict，可以直接提交
+	
+	svn ci -m "reintegrate from branch pitaya_bugfix@4570   
+	查看最新版本号
+	svn up
+	svn log -l 5
+	
+3) 回到工作分支pitaya_bugfix，记录record-only
+	cd pitaya_bugfix
+	x
+	( svn merge --record-only -c 4571 http://10.10.1.254:8001/svn/yyh/pitaya/ )
+	提交记录
+	svn ci -m "record the reintegrate to main branch pitaya@4571        
+
+
+如果发生 reintegrate Missing ranges问题 
+
+问题描述：
+在从branch向主干merge的过程中遇到以下问题：
+svn merge --reintegrate http://10.10.1.254:8001/svn/yyh/pitaya_bugfix
+svn: E195016: Reintegrate can only be used if revisions 2283 through 2825 were previously merged from 
+http://10.10.1.254:8001/svn/yyh/pitaya to the reintegrate source, but this is not the case:
+
+pitaya_bugfix/daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis
+Missing ranges: /pitaya/daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis:2812
+spitaya_bugfix/daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data
+Missing ranges: /pitaya/daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data:2812
+
+问题解决：
+第一步，先在branch(pitaya_bugfix)中将相关文件的mergeinfo删除
+svn propdel svn:mergeinfo daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis    
+property 'svn:mergeinfo' deleted from 'daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis'.
+
+svn propdel svn:mergeinfo daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data
+property 'svn:mergeinfo' deleted from 'daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data'.
+
+第二步，在branch(pitaya_bugfix)中提交改动
+svn ci -m "removed mergeinfo" daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis    
+Sending daokoudai-api/src/main/java/com/pitaya/daokoudai/api/analysis
+
+svn ci -m "removed mergeinfo" daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data    
+Sending daokoudai-model/src/main/java/com/pitaya/daokoudai/activity/data
+
+第三步，在主干(pitaya)上重新reintegrate
+svn merge --reintegrate http://10.10.1.254:8001/svn/yyh/pitaya_bugfix/    
+
+问题分析：
+可能是SVN的bug，待查。
+
+
+
+
+查找sql  发邮件给金磊，抄送定宇
+
+sql 执行完毕后（注意 如果临时修改，版本号不一致，查看smart svn－－ Repostory Brower  ）
+
+api staging 4485
+
+https://stagingapi.ecs.daokoudai.net/api/2.0/w/getActivityList?params={page:1,size:10}&from=W
+https://stagingapi.ecs.daokoudai.net/api/2.0/w/getHelpList?params={page:1,size:10}&from=IC
+
+
+http://www.daokoudai.com/api/2.0/w/getActivityList?params={page:1,size:10}&from=W
+http://www.daokoudai.com/api/2.0/w/getHelpList?params={page:1,size:10}&from=IC
+
+
+优先上线web
+web staging 4485
+
+https://stagingweb.ecs.daokoudai.com/
+
+wap staging 4348
+
+admin staging 4348
+
+schedule 4350
+
+美亚科技
+},
+
+
+10月27日到10月31日23:59:59
+个人用户入金已确认金额累计27433707.18元；
+累计放款金额22481245.00元。
+
+秘老师，您好
+
+如下是微信沟通所需的相关数据，请查阅：
+
+2016.10.27 00:00:00 至 2016.12.28 23:59:59
+个人用户所有成功订单的累计入金金额：262152236.85元
+累计放款金额：448938862.10元。
+
+如有问题，及时沟通。
+
+
+江老师，用户反馈E账户代扣调单，金额1000元，时间12-29 14:25左右，订单号：C2016122903066115，烦请帮忙修正，谢谢
+
+
+
+"CNAPS@!@FT17004101501772@!@ZJJG0005-0S18-ZJJG-17443093@!@20170104@!@085929@!@256169.00@!@03002749978@!@北京道口贷科技有限公司@!@1806014140003120@!@江西省地质工程（集团）公司@!@@!@账户户名与输入不符@!@20170104@!@092719@!@2017010413181976@!@98671788@!@S81@!@03002749978"
+
+
+
+
+CREATE TABLE `sh_bind_bank_account` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(30) NOT NULL COMMENT 'user_id',
+  `status` int(4) NOT NULL COMMENT '银行账户状态',
+  `bank_account_type` int(4) NOT NULL COMMENT '银行账户类型',
+  `account_name` varchar(50) DEFAULT NULL COMMENT '账户名',
+  `account_no` varchar(50) DEFAULT NULL COMMENT '账户号',
+  `bank_mobile` varchar(50) DEFAULT NULL COMMENT '银行预留手机号',
+  `bank_code` varchar(21) DEFAULT NULL COMMENT '银行代码',
+  `bank_flag` varchar(4) DEFAULT NULL COMMENT '本他行标志',
+  `created_by` varchar(32) DEFAULT NULL,
+  `created_on` datetime DEFAULT NULL,
+  `updated_by` varchar(32) DEFAULT NULL,
+  `updated_on` datetime DEFAULT NULL,
+  `version_optimized_lock` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`,`bank_account_type`,`account_no`),
+  KEY `INDEX_USER_ID` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=29741 DEFAULT CHARSET=utf8
+
+
+CREATE TABLE `sp_withdraw_request` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `TRANS_ID` varchar(24) NOT NULL,
+  `USER_ID` int(11) NOT NULL,
+  `AMT` decimal(12,2) NOT NULL,
+  `BANK_ACCOUNT` varchar(100) NOT NULL,
+  `BANK_ACCCOUNT_NAME` varchar(45) NOT NULL,
+  `FEE` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '提现手续费（上行收取）',
+  `management_fee` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '道口贷管理费',
+  `BANK_ACCOUNT_TYPE` tinyint(2) DEFAULT NULL,
+  `TRANS_STATUS` tinyint(2) NOT NULL,
+  `REQEUST_DATE` datetime NOT NULL,
+  `CONFIRM_DATE` datetime DEFAULT NULL,
+  `request_from` tinyint(1) DEFAULT NULL COMMENT '0-www,1-wap,2-android,3-ios',
+  `platform_type` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0-道口贷,1-校友金服',
+  `instruction_code` varchar(10) DEFAULT NULL COMMENT '提现网付资管代码',
+  `RET_CODE` varchar(8) DEFAULT NULL,
+  `RET_MSG` varchar(128) DEFAULT NULL,
+  `TRADE_NO` varchar(32) DEFAULT NULL,
+  `NOTES` text,
+  `CREATED_BY` varchar(32) NOT NULL,
+  `CREATED_ON` datetime NOT NULL,
+  `UPDATED_BY` varchar(32) DEFAULT NULL,
+  `UPDATED_ON` datetime DEFAULT NULL,
+  `VERSION_OPTIMIZED_LOCK` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `TRANS_ID` (`TRANS_ID`)
+) ENGINE=InnoDB AUTO_INCREMENT=75874 DEFAULT CHARSET=utf8
+
+
+
+
+
+
+
+
+
+
+
+开发完成:开发⼈人员在⾃自测和联调测试通过后,修改提案为已解决,并在备注中说明提交 测试的svn版本号。需要测试的,将经经办⼈人改为测试⼈人员,并备注完成情况,告知需要测试;不需要测试的,将经办⼈人改为报告⼈人,如上线内容涉及⽤用户操作内容,需邮件告知 产品联络⼈人及客服,测试⼈人员和报告⼈人员完成测试或验收后,重新指定经办⼈人为开发⼈人 员,并在JIRA中备注该需求已验收,之后测试⼈人员或技术负责⼈人或技术负责⼈人指定的JIRA 管理者关闭该JIRA提案。
+
+
+添加“适用范围及人员说明”，添加“需求变更流程”，添加6.1需求优先级说明，变更需求开发流程图等。
+
+
+
+编号：DKD/LC-JS000115A1.0
+
+
+讨论金融话题：
+平时关注那些金融网站（或公众号）？推荐理由？高质量文章简述。
+
+
+623185009300018055 60000 63846 
+
+
+
+郭老师，
+
+您好，由于623185009300006670之前已经多次大额投资，只能对该用户的道口贷账户进行1469652.05元的余额修正（已修正该部分金额）。对于其他2个用户，我们已经对“623185009300018055”的道口贷账户修正金额60000元，对“623185009300042279”的道口贷账户修正金额500000元。
+
+另外，623185009300006670用户的目前后续回款情况说明如下：
+从目前到“2017-04-01 00:00”，用户将累计回款本金和利息共计69206.09元，到“2017-04-02 00:00”，用户将累计回款本金和利息共计170846.09元，故如果通过回款来补齐未修正的130347.95元，需要等到2017年4月2日完成。
+
+另外，目前三个用户的资管余额、互联网核心余额仍然不正确，会导致用户后续产生错误的余额理财收益等，这样，也会间接导致我方数据变更错误，还请知晓并及时更正用户金额。
+
+
+
+
+ INSERT INTO `sp_account_trans` (`id`, `TRANS_ID`, `ACCOUNT_ID`, `WAY`, `OPER_TYPE`, `ORDER_INFO_TRANSID`, `AMT`, `ACCOUNT_BALANCE`, `TRANS_DATE`, `TRANS_DESC`, `CREATED_BY`, `CREATED_ON`, `VERSION_OPTIMIZED_LOCK`) VALUES (NULL, 'AT2016011600000001', (select id from sp_user_account where user_id = 63846), ‘2’, '19', 'AT2016011600000001', '60000',(select available_amount from sp_user_account where user_id = 63846), now(), '余额修正', 'SYS', now(), '0');
+
+
+ INSERT INTO `sp_account_trans` (`id`, `TRANS_ID`, `ACCOUNT_ID`, `WAY`, `OPER_TYPE`, `ORDER_INFO_TRANSID`, `AMT`, `ACCOUNT_BALANCE`, `TRANS_DATE`, `TRANS_DESC`, `CREATED_BY`, `CREATED_ON`, `VERSION_OPTIMIZED_LOCK`) VALUES (NULL, 'AT2016011600000002', (select id from sp_user_account where user_id = 99037), ‘2’, '19', 'AT2016011600000002’, '500000',(select available_amount from sp_user_account where user_id = 99037), now(), '余额修正', 'SYS', now(), '0');
+
+ INSERT INTO `sp_account_trans` (`id`, `TRANS_ID`, `ACCOUNT_ID`, `WAY`, `OPER_TYPE`, `ORDER_INFO_TRANSID`, `AMT`, `ACCOUNT_BALANCE`, `TRANS_DATE`, `TRANS_DESC`, `CREATED_BY`, `CREATED_ON`, `VERSION_OPTIMIZED_LOCK`) VALUES (NULL, 'AT2016011600000003’, (select id from sp_user_account where user_id = 14858), ‘2’, '19', 'AT2016011600000003’, '1600000',(select available_amount from sp_user_account where user_id = 14858), now(), '余额修正', 'SYS', now(), '0');
+
+
+
+校友金服微信版上行优化版20161125
+
+上行快线资产合作-20151204
+上行快线专享项目-20161129
+
+
+
+
+
+
+
+
+放假前需要完成的工作有：
+1.保证春节假期网络和电话畅通：VPN的安装和使用测试、确认春节期间联系方式；
+2.最新稳定版代码的本地备份（客户端自己备份、前后端备份bugfix、主支）；
+3.如遇紧急情况，需要上线的，走紧急上线流程。
+
+假期值班安排如下：
+以下按照姓名先后顺序，分别为第一负责人和备选负责人
+后端：
+1月27日：田海宁、陈鹏飞
+1月28日：杨冬、陈鹏飞
+1月29日：张彪、田海宁
+1月30日：邹加磊、张彪
+1月31日：邹加磊、刘浩
+2月1日：刘浩、张彪
+2月2日：田海宁、陈鹏飞
+
+运维：
+1月27日：王楠、王金磊
+1月28日：王楠、王金磊
+1月29日：王楠、王金磊
+1月30日：王楠、王金磊
+1月31日：王金磊、王楠
+2月1日：王金磊、王楠
+2月2日：王金磊、王楠
+
+IOS：
+张安东、张朝阳
+
+
+Android：
+宁杉、王飞
+
+前端：
+王剑飞、李鹏、齐磊
+
+测试
+王海超、常超、王文邦
+
+
+1.保证春节假期网络和电话畅通：VPN的安装和使用测试、确认春节期间联系方式；
+2.最新稳定版代码的本地备份（客户端自己备份、前后端备份bugfix、主支）；
+3.如遇紧急情况，需要上线的，走紧急上线流程；
+4.客服问题请值班人员回答。
+
+
+
+
+定宇哥，下面是拟发给rd的邮件内容：
+
+各位，
+
+今天和运维+后端假期紧急联系人做了当面确认，之前统计的大家可联系时间保持不变，详细信息见邮件下方：
+
+还请大家做到：
+1.保证春节假期网络和电话畅通：VPN的安装和使用测试、确认春节期间联系方式；
+2.最新稳定版代码的本地备份（客户端自己备份、前后端备份bugfix、主支）；
+3.如遇紧急情况，需要上线的，走紧急上线流程；
+4.客服问题请值班人员跟进及回答；
+5.如有手机号码变更，还请提前告知我，做通讯录更新；
+
+对于假期中出现的问题，建议的处理方式如下：
+适合节假日后处理的问题（如代扣掉单），建议先做问题记录，并在春节假期结束之后，第一时间进行处理；
+如遇必须立即解决的问题（如投资功能异常）：
+	不涉及上行的，内部及时解决，及时将情况告知定宇哥；
+	需要上行配合解决的，建议先在微信群里进行反馈（@相关老师），并及时将情况告知定宇哥，如上行老师长时间没有回答，可以电话联系上行老师，进行后续问题的沟通和处理。
+
+
+附：
+wiki地址：http://wiki.dev.daokoudai.net/pages/viewpage.action?pageId=17596609
+后端：
+1月27日：田海宁、陈鹏飞
+1月28日：杨冬、陈鹏飞
+1月29日：张彪、田海宁
+1月30日：邹加磊、张彪
+1月31日：邹加磊、刘浩
+2月1日：刘浩、张彪
+2月2日：田海宁、陈鹏飞
+ 
+运维：
+1月27日：王楠、王金磊
+1月28日：王楠、王金磊
+1月29日：王楠、王金磊
+1月30日：王楠、王金磊
+1月31日：王金磊、王楠
+2月1日：王金磊、王楠
+2月2日：王金磊、王楠
+
+IOS：
+张安东、张朝阳
+Android：
+宁杉、王飞
+
+前端：
+web：王剑飞
+wap：李鹏
+plan-wap：齐磊
+ 
+测试
+王海超、常超、王文邦
+个人假期请假统计如下：
+
+
+更新了田海宁、徐祚洋、张安东、李鹏、王剑飞、王海超、杨冬
+
+
+
+由于个人用户提现失败，金额回退到了汇总账户，但目前挂账接口（46722）只支持挂账到对公账户，不支持挂账到个人，需要将该笔退汇挂账到个人账户下面，烦请帮忙操作，谢谢。
+相关信息：
+姓名：何智铭
+资管账号：440623197411192694
+银行流水：BEA170221622075068101
+
+
+
+定宇哥，我买到今天票回来了，明天不请假了，正常上班，正好掉单可以和上行沟通下。
+
+
+~/.ssh/id_rsa.pub
+
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9muhmyBrF9jna1JNGwpFFs3WJj8X+ZSF0aek0g7dtSWNS1tnijj+UC7gBzCYW5Ikow7DP/GjBRmDX4mBLHsm0Mgnruq9ZXrLW+Ua6GWJLymZmZfZ1jBmoNJRlsOB8y2jQwsQBRy4rEc88tPKDttgZiaGvSb/9Ub6vCgTrcFyfpx3NQIEpd8IcX7lsG4jCvKG5++V9drP+ll6/vTV1QLNg8JsuqVUwAU28L0T0msaP+xXr/gW+9zrijFLxjDhZ6AxFrVYAXxImfdrX0W0VW1AvUOHoRs0Kucc6pBko/Vp+vL5WFHJLuK7agU9H8XEBlxKE9ATKfRE2+KQkEP7KiUMt admin@zoujialei
+
+
+
+1.问题描述
+用户使用代扣方式充值，上行页面显示“代扣超时/系统正在对数据处理/Communication timeout, failed to get response”，银行卡钱已经完成扣款，但查询道口贷账户，钱并没有增加，资管账户前也没有增加。
+
+2.问题原因
+资管系统订单处理逻辑问题（需优化）：
+    目前互联网核心如果收到银联应答超时，（系统正在对数据处理/Communication timeout, failed to get response）后续互联网核心会主动查询银联2次，确定订单的最终状态。而目前资管系统只根据当时互联网核心的反馈，确定订单的最终状态，没有对中间状态订单进行后续查询，最终导致客户代扣最终掉单。
+
+3.问题解决
+目前和上行沟通确认的是，代扣掉单的会在下一个工作日处理完成，客服部门给客户的答复是在下一个工作日处理，具体处理流程如下：
+3.1发生掉单的下一个工作日上午，将订单信息告知上行业务老师：
+
+3.2上行业务老师反馈告知处理结果；
+
+3.3修改我们这边的账户余额，使用admin接口（订单修复:E账户掉单订单）完成用户金额修正
+
+3.4告知客服人员，用户金额已修正。
+
+
+
+
+git clone ssh://zoujialei@10.10.1.239:29418/test && scp -p -P 29418 zoujialei@10.10.1.239:hooks/commit-msg test/.git/hooks/
+
+
+
+
+
+8901-数据库错误,详看错误日志
+
+
+
+
+
+	
+
+
+appListTransRecord里面替换
+
+setSearchAccountOperTypeForApp114(tradeType, atr);
+		
+
+	/*
+		//投资冻结金额
+
+
+
+
+//添加绑卡状态
+		BankcardStatus bankCardStatus = BankcardStatus.UNVALID;
+		SHBindBankAccount bankCard = shBindBankAccountManager.getLatestBankCardByUserId(user.getId());
+		if (bankCard != null) {
+			bankCardStatus = bankCard.getStatus();
+		}
+		Boolean hasTradePassword = null;
+		ShStockUser shStockUser = shStockUserManager.getShStockUserByUserId(user.getId());
+		if (shStockUser != null) {
+			hasTradePassword = shStockUser.getHasTradePassword();
+		}
+		json.put("openAccountStatus", openAccountStatus);
+		json.put("hasTradePassword", hasTradePassword);
+		json.put("bankCardStatus", bankCardStatus);
+		json.put("investFreezeAmt", investFreezeAmt);
+		json.put("withdrawFreezeAmt", withdrawFreezeAmt);
+		json.put("umpayWithdrawFreezeAmt", umpayWithdrawFreezeAmt);
+		*/
+		json.put(ResultConstants.RESCODE, ResultEnum.SUCCESS.getResCode());
+		json.put(ResultConstants.RESMSG, ResultEnum.SUCCESS.getResMsg());
+
+		json.put("list", accountTransRecordList);
+		json.put("availableAmt", availableAmt);
+
+		json.put("umpayAvailableAmt", umpayAvailableAmt);
+		json.put("page", page);
+		return json.toString();
+
+
+
+
+
+
+
+
+13702426365
+
+
+
+ProjectTransRequestMangerImpl
+数据库并发问题：
+insert into sp_project_trans_request (trans_id, order_trans_id, trans_status, trans_type, request_date, version_optimized_lock) 
+	select * from (select ? as trans_id, ? as order_trans_id, ? as trans_status, ? as trans_type, ? as request_date, ? as version_optimized_lock) as tmp 
+		where not exists(select * from sp_project_trans_request where order_trans_id = ? and trans_status in (?, ?) and trans_type = ?) limit 1
+
+
+
+
+
+
+@RequestMapping(value = "/{channel}/appTransRecordList", method = {RequestMethod.GET, RequestMethod.POST})
+	@ResponseBody
+	public String appTransRecordList(@PathVariable String channel,
+									 @RequestParam(value = "params", required = true)String params,
+									 @RequestParam(value = "from", required = true)RequestFrom from,
+									 @RequestParam(value = "imei", required = false)String imei,
+									 @RequestParam(value = "appKey", required = false)String appKey,
+									 @RequestParam(value = "apiName", required = false)String apiName){
+		return accountManageService.appListTransRecord(params, from, imei, appKey, apiName);
+	}
+
+
+
+
+
+
+
+
+
+
+张老师，生产环境，2017-02-05 01:30左右，客户发起提现订单号为“W2017020503752846”的提现操作，资管收到该相同订单号3次，还要麻烦确认下为何会有三次相同的请求到资管。
+
+
+
+
+UPDATE `sp_user_account` SET `available_amount`=`available_amount`-50.21, `available_withdraw_amt`=`available_withdraw_amt`-50.21  where user_id = 102929;
+
+INSERT INTO `sp_account_trans` (`id`, `TRANS_ID`, `ACCOUNT_ID`, `WAY`, `OPER_TYPE`, `ORDER_INFO_TRANSID`, `AMT`, `ACCOUNT_BALANCE`, `TRANS_DATE`, `TRANS_DESC`, `CREATED_BY`, `CREATED_ON`, `VERSION_OPTIMIZED_LOCK`) 
+VALUES (NULL, 'AT2017020700000001', (select id from sp_user_account where user_id = 102929),  '2', '3', 'W2017020503752846', '50.21',(select available_amount from sp_user_account where user_id = 102929), now(), '提现-银行卡尾号(0239)', 'SYS', now(), '0');
+
+UPDATE `sp_withdraw_request` SET `TRANS_STATUS`='1', `RET_CODE`='0000', `RET_MSG`=‘交易成功' WHERE `id`='85157';
+
+
+用户模块、金融产品模块、项目模块、出入金模块、对账模块、活动模块、第三方对接模块。用户模块、金融产品模块、项目模块、出入金模块、对账模块、活动模块、第三方对接模块。
+
+
+
+
+
+
+
+
+emailDailyUserReportTemplate.vm
+
+UserManagerImpl.java
+
+SHBindCardRequestManagerImpl.java
+
+SHBindCardRequestManager.java
+
+
+
+29ed48944e16e2a4e31d4ab4a86af0ccf96b4b2a
+
+84371129bfbee236b4fa0fb2001ec2a0726ef646
+
+If3aed1e6d6ed107db892627e0819ab44caf62363
+
+
+a901f9769b62be23c5850da3411a797ec2653d5b
+
+
+
+
+	/**
+	 * 客户端 我的账户接口
+	 * @param channel
+	 * @param params
+	 * @param from
+	 * @param imei
+	 * @param appKey
+	 * @param apiName
+	 * @return
+	 */
+	@RequestMapping(value = "/{channel}/appAccount", method = {RequestMethod.GET, RequestMethod.POST})
+	@ResponseBody
+	public String appAccount(@PathVariable String channel,
+							 @RequestParam(value = "params", required = true)String params,
+							 @RequestParam(value = "from", required = true)RequestFrom from,
+							 @RequestParam(value = "imei", required = false)String imei,
+							 @RequestParam(value = "appKey", required = false)String appKey,
+							 @RequestParam(value = "apiName", required = false)String apiName){
+		JSONObject json = JSONObject.fromObject(params);
+		String token = json.optString("token");
+		return accountManageService.getAppAccountInfo(token);
+	}
+
+//	客户端 查询用户账户状态
+	@RequestMapping(value = "/{channel}/appAccountStatus", method = {RequestMethod.GET, RequestMethod.POST})
+	@ResponseBody
+	public String appAccountStatus(@PathVariable String channel,
+							 @RequestParam(value = "params", required = true)String params,
+							 @RequestParam(value = "from", required = true)RequestFrom from,
+							 @RequestParam(value = "imei", required = false)String imei,
+							 @RequestParam(value = "appKey", required = false)String appKey,
+							 @RequestParam(value = "apiName", required = false)String apiName){
+		JSONObject json = JSONObject.fromObject(params);
+		String token = json.optString("token");
+		return accountManageService.getAppAccountStatus(token);
+	}
+}
+
+
+42571142.98
+42552142.17
+
+19000.81
+
+
+
+https://shapi.daokoudai.com/api/test/deliverReward?shAccountId=522730198301129198&rewardAmtStr=0.50&orderId=0215_001
+
+
+
+
+
+
+
+
+
+
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+         pageEncoding="UTF-8"%>
+<%@ include file="/pages/inc_public/tag_public.jsp" %>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head lang="en">
+  <title>代扣状态未知订单</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta http-equiv="X-UA-COMPATIBLE" content="IE=edge">
+  <link type="text/css" media="screen" rel="stylesheet" href="/resources/css/simplePagination.css"/>
+  <link type="text/css" media="screen" rel="stylesheet" href="/resources/css/bootstrap.min.css"/>
+  <link type="text/css" media="screen" rel="stylesheet" href="/resources/css/custom-theme/jquery-ui-1.9.2.min.css"/>
+  <link type="text/css" media="screen" rel="stylesheet" href="/resources/css/common.css"/>
+  <style type="text/css">
+    .form-horizontal.add-form,.form-horizontal.edit-form{
+      width: 800px;
+      height: 475px;
+      position: fixed;
+      background-color: #fff;
+      border: 1px solid #e0e0e0;
+      left: 50%;
+      margin-left: -400px;
+      z-index:999999;
+      top:50%;
+      margin-top:-210px;
+      padding-left:35px;
+    }
+    #black-mask {
+      width:100%;
+      height:100%;
+      background-color:#000;
+      opacity:0.5;
+      position:fixed;
+      top:0;
+      left:0;
+      z-index: 99999;
+      display:none;
+    }
+    .form-control{
+      width: 50%;
+    }
+  </style>
+</head>
+<body>
+<div class="navbar navbar-default navbar-fixed-top" role="navigation">
+  <div class="container">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">道口贷</a>
+    </div>
+    <c:import url="../common/header.jsp" charEncoding="UTF-8"></c:import>
+  </div>
+</div>
+<div class="main">
+  <div class="container">
+    <div class="clearfix">
+      <ul class="breadcrumb">
+        <li>汇总对账管理</li>
+        <li class="active"><a href="./list">代扣状态未知订单</a> </li>
+      </ul>
+    </div>
+    <form role="form" id="findForm" action="/shVerifyAccount/list" method="post">
+
+      <div class="form-group col-sm-6">
+        <label class="col-sm-3 control-label">对账是否平:</label>
+        <select name="verifyStatus" class="form-control col-sm-3"  un="${verifyStatus}">
+          <option value="">请选择</option>
+          <option value="true" <c:if test="${verifyStatus == true }">selected</c:if>>true</option>
+          <option value="false"<c:if test="${verifyStatus == false }">selected</c:if>>false</option>
+        </select>
+      </div>
+
+      <div class="pull-center">
+        <button type="submit" class="btn btn-success search">查询</button>
+      </div>
+    </form>
+    <div class="detail">
+      <table class="table">
+        <tbody>
+        <tr>
+          <th>订单号</th>
+          <th>用户id</th>
+          <th>金额</th>
+          <th>请求时间</th>
+          <th>上行流水号</th>
+          <th>客户姓名</th>
+          <th>用户手机号</th>
+          <th>错误码</th>
+          <th>错误信息</th>
+        </tr>
+        <c:if test="${not empty unknownChargeStatusList}">
+          <c:forEach var="item" items="${unknownChargeStatusList}">
+            <tr>
+              <td>${item.transId}</td>
+              <td>${item.userId}</td>
+              <td>${item.amt}</td>
+              <td><fmt:formatDate value="${item.requestDate}" type="date" pattern="yyyy-MM-dd HH:mm:ss" /></td>
+              <td>${item.tradeNo}</td>
+              <td>${item.realName}</td>
+              <td>${item.bindMobile}</td>
+              <td>${item.retCode}</td>
+              <td>${item.retCode}</td>
+              <td>${item.retMsg}</td>
+            </tr>
+          </c:forEach>
+        </c:if>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-wrap">
+      <ul class="pagination" id="pagination" total="${page.totalRecords}" size="${page.getRecordsPerPage()}"
+          start="${page.getCurrentPage()*page.getRecordsPerPage()-page.getRecordsPerPage()}">
+      </ul>
+    </div>
+  </div>
+</div>
+<div id="black-mask"></div>
+<script type="text/javascript" src="/resources/js/lib/seajs/sea.js"></script>
+<script type="text/javascript" src="/resources/js/lib/seajs/seajs-config.js"></script>
+<script type="text/javascript">
+  seajs.use(['{path}/lib/seajs/init','{path}/common/getInfo','{path}/lib/jquery/jquery-ui-timepicker-addon'], function (init) {
+    $(function () {
+      var paginationURL="/shVerifyAccount/list"+"?"+$('#findForm').serialize()
+      init.initPage(paginationURL);
+      $('.date').datepicker({
+        dateFormat : 'yy-mm-dd'
+      });
+    });
+
+
+  });
+
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+String realName = (String) item[5];
+                if(authorityLimit){
+                    AddStarUtils.doRealName(realName);
+                }
+                charge.setRealName(realName);
+
+
+umpayAvailableAmt
+
+umpayWithdrawFreezeAmt
+
+
+
+
+git clone ssh://zoujialei@10.10.1.239:29418/summer && scp -p -P 29418 zoujialei@10.10.1.239:hooks/commit-msg summer_res/.git/hooks/
+
+
+
+江老师好，我们有用户反馈使用线下转账方式进行充值的时候，提示卡号不存在，用户E子账户为：623185009300066286，还请帮忙查找下原因，谢谢~
+
+
+
+
+
+
+50368455.28
+50422456.09
+
+
+
+54000.81
+
+
+
+
+
+
+
+git clone ssh://zoujialei@10.10.1.239:29418/summer  /Users/admin/summer_res && scp -p -P 29418 zoujialei@10.10.1.239:hooks/commit-msg summer/.git/hooks/
+
+
+
+陈老师，
+
+对于第一点，处理方式补充说明如下：（1）日间轮询： 
+	对于代扣中间状态的订单，资管需要轮询查询互联网核心，确定订单最终状态，如成功，则按成功逻辑处理，失败则按失败逻辑处理，且将成功订单放入当天的出入金对账文件中。
+	另：轮询的时间还请参考互联网核心确定订单状态的时间，这样既能保证资管自身轮询压力，又能保证客户体验。（2）日终对账： 通过与互联网核心进行对账，确定订单最终状态，如成功，则按成功逻辑处理，失败则按失败逻辑处理，且将成功订单放入当天的出入金对账文件中。
+
+对于第二点，还需要明确具体操作流程：T24与互联网核心之间发生掉单的处理流程。
+
+对于第三点，E账户余额的查询包括如下内容：
+E账户余额（如有子账户，需包含子账户余额信息）及交易明细。
+
+谢谢~
+
+
+
+
+资管账号为：340103198104201026的用户（琚玲）在1月23日进行线下转账充值，互联网核心当时处理失败，24日凌晨互联网和T24对账后，发现差异，后续互联网核心手动调账，并将结果在25日凌晨的时候给到资管，资管后续做的修正。
+
+
+
+《管理办法》规定，金融机构发现或者有合理理由怀疑客户、客户的资金或者其他资产、客户的交易或者试图进行的交易与洗钱、恐怖融资等犯罪活动相关的，不论所涉资金金额或者资产价值大小，应当提交可疑交易报告。即以“合理怀疑”为基础开展可疑交易报告工作。具体要求主要包括：
+
+一是金融机构应当将可疑交易监测工作贯穿于金融业务办理的各个环节。金融机构既要在客户身份识别过程中采取合理措施识别可疑交易线索，也要通过对交易数据的筛选、审查和分析，发现客户、资金或其他资产和交易是否与洗钱、恐怖融资等违法犯罪活动有关。对于进行中的交易或者客户试图开展的交易，金融机构发现或有合理理由怀疑其涉及洗钱、恐怖融资的，也应当提交可疑交易报告。
+
+二是金融机构应当同时关注客户的资金或资产是否与洗钱、恐怖融资等犯罪活动相关。资产包括但不限于银行存款、汇款、旅行支票、邮政汇票、保单、提单、仓单、股票、债券、汇票和信用证，房屋、车辆、船舶、货物、其他以电子或者数字形式证明资产所有权、其他权益的法律文件、证书等。
+
+三是金融机构提交可疑交易报告，没有资金或资产价值大小的起点金额要求。如涉嫌恐怖融资活动的资金交易可能金额较小，但按照《管理办法》，金融机构仍应当提交可疑交易报告。
+
+四是金融机构应当按照规定时间报送可疑交易报告。《管理办法》规定，金融机构应当“在按本机构可疑交易报告内部操作规程确认为可疑交易后，及时提交可疑交易报告，最迟不超过5个工作日”。
+
+为执行这些要求，金融机构应当按照《管理办法》，制定可疑交易报告制度和操作规程，为可疑交易报告工作提供充足的人力保障和资源支持，建立健全自主定义的交易监测标准，建立功能完善、运行良好的监测系统，做好涉恐名单监控，加强对系统预警的异常交易的人工分析、识别，保留相关工作记录，并遵守保密要求等。
+
+
+
+
+13552290515沟通或加QQ374490790
+
+王经理好，还请问几个问题？
+1.证书种类的区别？其他P2P公司所选的类型？
+2.证书从申请到可用所需流程，多久可以下来？
+3.其他使用贵公司认证证书的P2P公司？
+4.所涉及的收费及相应标准?
+
+
+
+
+作者：知乎用户
+链接：https://www.zhihu.com/question/52493697/answer/130784753
+来源：知乎
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+
+
+有回款用户，回款用户的余额理财部门无法提现
+
+张雅萍 今日有回款
+
+
+金老师，陈老师，今天生产环境，7点半之后（余额理财归集后），大量用户提现报错“可用资金不足”，目前查询相关订单号（W2017022504174445，W2017022504175177）反馈告知”5223-被查询流水不存在,不能随便使用“，还请紧急处理下。
+
+
+
+                                                              技术可行性分析报告 
+ 
+                                       
+                                                              技术可行性分析报告 
+ 
+                                       
+为测试用例标明时间或版本可以起到一种基准的作用，标明项目进度过程中的每一个阶段，使用例直接和需求基线、软件版本对应。同样这需要规范流程，也是对变更的一种确认和控制。或者可以为用例增加一个状态，指明这个用例目前是否与程序冲突，当程序变更时改变用例的状态，并更新用例版本。 
+
+
+
+
+
+        var cpro_psid = "u2787156";
+        var cpro_pswidth = "966";
+        var cpro_psheight = "120";
+    
+
+把drools自带的core包加进去就ok了
+
+对于5.0版本：
+
+Drools 5.0.0.M4\drools-5.0.0.M4-bin\lib\core-3.4.2.v_883_R34x.jar
+
+
+
+各位老师，生产环境，目前投资、提现异常，烦请紧急处理下。
+
+DAOK-2165 在总账户金额统计界面新增记录历史每月末的累计投资人 有效投资人 人均待回款金额（本金and利息）
+
+
+git fsck --lost-found
+然后使用git show 查看dangling commit的id，看看是否是自己想要的
+git show 8dd73fa8d14880182f11e24dc10bca570b6127d7
+如果是，那么可以执行git merge进行恢复
+git merge 8dd73fa8d14880182f11e24dc10bca570b6127d7
+Updating aec16a3..8dd73fa
+Fast-forward
+ df | 0
+ w  | 0
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 df
+ create mode 100644 w
+
+
+
+2、4.6条：对方需要友情链接其网站；
+3、6.8条：我方单方违约，已支付费用不退还；
+4、9条：建议争议解决地改为被告方所在地法院。
+
+
+
+杨经理，我们公司法务看了一下，给了下面几点意见：
+1）4.6 希望友情链接不是强制形式的，而是我们可选的；
+2）6.8 希望去掉“我方单方违约，已支付费用不退还”的相关描述；
+3）9 希望争议解决地改为被告方所在地法院。
+
+所以，是否可以改为：
+4.6甲方有权在甲方官网页面中将乙方列为友情链接单位，并将该链接指向乙方“法大大”网站；同时甲方有权在官网首页适当位置对外宣传甲乙双方的合作，合理放置乙方品牌标识。
+6.8去掉。
+9 如履行本协议发生争议，双方应协商解决或请求调解。如协商不成，应向被告方所在地的人民法院提起诉讼，通过法律程序予以解决。
+
+
+
+4.6甲方可以在甲方官网页面中将乙方列为友情链接单位，并将该链接指向乙方“法大大”网站；同时可以在甲方官网首页适当位置对外宣传甲乙双方的合作，合理放置乙方品牌标识，保证乙方品牌露出的时间不得少于两周。
+
+6.8 若甲方在本协议生效后单方违约，则乙方按照本协议第3条的约定收取的费用将作为甲方支付的违约金，不再退回。
+
+如履行本协议发生争议，双方应协商解决或请求调解。如协商不成，应向被告所在地的人民法院提起诉讼，通过法律程序予以解决。
+
+
+李定宇<lidingyu@daokoudai.com>
+
+
+杨淳
+手机：15801400776 邮箱：yangc@fadada.com
+
+
+上线人员 负责需求发起、确认、负责上线代码收集、整合,推动上线⼯工作进⾏行
+
+
+客户端需求,提交应⽤用市场时间为每个⽉月最后⼀一周的周三。
+至guahao114@sina.com平台服务
+
+2017-03-16 17:13:16
+
+
+
+乙方户名：深圳法大大网络科技有限公司乙方账号：755929597010201开 户 行：招商银行深圳分行高新园支行
+
+
+各位老师好，账户对账明细到如下：
+1、44604监管账户实户比46723资管虚户汇总多48955.94元（43955.73季度结息+0.21错误打款验证+5000代扣掉单）。
+2、资管用户07与E账户余额汇总不平的原因是3月20日进行了季度结息，资管还未加上，待明天对账观察下。
+
+
+
+
+科林，郑明好，
+
+由于合规要求，之后的投资合同中，签章需要使用经过第三方认证的电子签名，每个合同需要有的签名：个人、企业、平台。
+
+现在咱们使用的第三方是法大大，企业申请电子签名有两种模式：
+1.提交企业资料（纸质和电子版），包括：
+	A：企业信息：常用电子邮箱账号、初始密码、企业名称、营业执照注册号等
+	B：法定代理人信息：姓名、身份证号、联系电话、email地址
+	C：接收下发短信手机号：法定代表人手机号或代理人手机号
+2.平台（道口贷）代企业用户申请电子签名，企业无感知。
+
+如上相关情况请知晓。
+
+考虑到现状，我们建议选择模式2来实现符合合规的电子签名，之后的融资项目或新增合作融资企业时，建议在合作合同里面，补充类似“道口贷将会代融资企业申请电子签名，并在借款合同中使用该签名”的相关说明。
+
+
+各位老师好，反馈一家企业提现异常的问题，烦请帮忙核实原因，具体如下，：
+企业提现5万以上，就会成功，提现5万以内，即走超级网银通道，报错“RJ90-其他”，另外，我们使用道口贷的对公账户（非上海银行卡）给企业线下转账1分钱，成功了。
+公司名称：厦门市三槐集成系统工程有限公司
+绑卡银行：中国农业银行股份有限公司厦门滨北支行
+银行卡号：351001040000526
+
+
+这样的话，用户A在别的平台用188********申请了CA证书，后面，弃用了手机号码，B开始使用该手机号码，在道口贷平台申请CA，使用了188********，因为网络原因，我们没有接收到客户编号，就重新申请了一次，有这么一个小问题。
+
+
+江老师，陈老师，我补充下上午反馈的提现充值，返回“6616-系统异常”的订单信息，烦请跟进处理。
+目前反馈的用户多是iOS用户，补充部分订单信息：
+提现订单号：W2017032704890899（2017/3/27 10:47左右）
+提现订单号：W2017032704885703（2017/3/27 09:18左右）
+充值订单号：C2017032704890896（2017/3/27 10:46左右）
+充值订单号：C2017032604875774（2017/3/26 19:30左右）
+
+
+
+深圳法大大网络科技有限公司
+
+企业充值提现短信提醒：
+
+充值：没有
+提现：当通过查询上行，确认提现请求成功或失败后，会告知提现成功或失败，提现又分为普通提现及拆单提现，具体的文案如下：
+
+普通提现：
+成功后："亲爱的用户，您于%s申请%s元的提现操作已成功，请关注绑定的银行卡（%s）内的资金变化。";
+失败后：”亲爱的用户，您于%s进行的%s元提现操作因没有正确提交导致的冻结资金现已解冻，您可重新操作提现。如有疑问请咨询客服电话：400-622-7618。"
+
+拆单提现：
+成功后： "亲爱的用户，您于%s申请%s元的超网提现操作已成功（分为%d笔），请关注绑定的银行卡（%s）内的资金变化。";
+失败后： "亲爱的用户，您于%s进行的%s元超网提现（分为%d笔），%s元提现成功，%s元最终提现失败，失败部分可重新操作提现。如有疑问请咨询客服电话：400-622-7618。";
+
+
+DAOK-2252 自动发布余额理财收益公告
+
+1.版本变动历史；
+2.
+3.模块的联调，自测不充分。
+4.关于Tags,以后会采⽤用Tags管理上线版本,⽽而⾮非直接使⽤用revision号。
+5.JIRA的附件过大，NAS文件的管理。
+6.NAS的文件恢复。
+
+45637027.19
+
+
+
+
+@后端  各位，和之前一样  为了保证假期期间各项工作正常运行 有问题后迅速做出反映并处理
+
+需要统计下大家清明期间的时间，各位回复下假期期间哪天可以作为紧急联系人的时间把。
+
+
+response = FddClientBase.syncQueryStatus("ht0330001","7A62B04330D0F4FC684820BDC07F494E");
+
+
+合同生成接口，generate_contract这个接口
+
+
+response = FddClientBase.syncGetUrl("mbht0330001","30","3");
+
+
+
+
+{"code":"1000","download_url":"https:\/\/testapi.fadada.com:8443\/api\/\/downLoadContract.action?app_id=400303&v=2.0&timestamp=20170330160206&contract_id=mbht0330005&msg_digest=NDhBQUZEQTlEMDI3OUZCQkQyQkNEMUJDMDFBN0FEQzAwRTU1N0NDRQ==","msg":"操作成功","result":"success","viewpdf_url":"https:\/\/testapi.fadada.com:8443\/api\/\/viewContract.action?app_id=400303&v=2.0&timestamp=20170330160206&contract_id=mbht0330005&msg_digest=NDhBQUZEQTlEMDI3OUZCQkQyQkNEMUJDMDFBN0FEQzAwRTU1N0NDRQ=="}
+
+
+
+
+CREATE TABLE `sh_register_request` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `order_no` varchar(32) NOT NULL COMMENT '订单号',
+  `user_id` varchar(30) NOT NULL COMMENT 'user_id',
+  `trans_status` int(4) NOT NULL COMMENT 'request订单状态',
+  `b_organ_id` varchar(4) DEFAULT NULL COMMENT '银行编号',
+  `tran_date` datetime NOT NULL COMMENT '交易日期',
+  `busin_type` varchar(4) NOT NULL COMMENT '业务类型',
+  `money_kind` varchar(4) NOT NULL COMMENT '币种',
+  `client_kind` varchar(4) NOT NULL COMMENT '客户类型0-个人1-企业',
+  `secu_acct` varchar(50) NOT NULL COMMENT 'P2P资金账号这个指的是用户的虚拟账户id，由道口贷提供这个唯一资金账号',
+  `client_name` varchar(250) NOT NULL COMMENT '客户姓名',
+  `id_kind` varchar(4) NOT NULL COMMENT '证件类型1身份证8组织机构代码9营业执照',
+  `id_code` varchar(60) NOT NULL COMMENT '证件号码',
+  `clientAcct` varchar(60) DEFAULT NULL COMMENT '银行结算账户客户绑卡的银行卡',
+  `bank_flag` varchar(4) DEFAULT NULL COMMENT '本他行标志',
+  `e_client_flag` varchar(4) DEFAULT NULL COMMENT 'E账户标志',
+  `z_client_acct` varchar(60) DEFAULT NULL COMMENT 'E贸主账号',
+  `e_client_acct` varchar(60) DEFAULT NULL COMMENT 'E贸子账号',
+  `u_client_flag` varchar(4) DEFAULT NULL COMMENT '余额理财标志',
+  `amt` decimal(15,2) NOT NULL DEFAULT '0.00' COMMENT '初始余额',
+  `verify_amt` decimal(15,2) DEFAULT NULL COMMENT '企业打款验证金额',
+  `b_cust_branch` varchar(60) DEFAULT NULL COMMENT '开户行行号',
+  `b_cust_branch_name` varchar(250) DEFAULT NULL COMMENT '开户行名称',
+  `tel_no` varchar(60) DEFAULT NULL COMMENT '电话号码',
+  `fax_no` varchar(20) DEFAULT NULL COMMENT '传真号码',
+  `mobile` varchar(50) DEFAULT NULL COMMENT '手机号码银行预留手机号',
+  `post_code` varchar(6) DEFAULT NULL COMMENT '邮政编码',
+  `address` varchar(60) DEFAULT NULL COMMENT '联系地址',
+  `email` varchar(60) DEFAULT NULL COMMENT '电子邮箱',
+  `summary` varchar(250) DEFAULT NULL COMMENT '摘要',
+  `register_mobile` varchar(50) DEFAULT NULL COMMENT '注册手机号',
+  `request_from` varchar(4) NOT NULL COMMENT 'requestFrom',
+  `return_order_no` varchar(30) DEFAULT NULL COMMENT '订单号',
+  `return_bank_serial` varchar(60) DEFAULT NULL COMMENT '银行流水号',
+  `return_date` date DEFAULT NULL COMMENT '监管交易日期',
+  `return_z_client_acct` varchar(60) DEFAULT NULL COMMENT 'E贸主账号',
+  `return_e_client_acct` varchar(60) DEFAULT NULL COMMENT 'E贸子账号',
+  `return_b_serial` varchar(20) DEFAULT NULL COMMENT '监管流水号',
+  `return_error_no` varchar(30) DEFAULT NULL COMMENT '返回码',
+  `return_error_info` varchar(100) DEFAULT NULL COMMENT '失败原因',
+  `created_by` varchar(32) DEFAULT NULL,
+  `created_on` datetime DEFAULT NULL,
+  `updated_by` varchar(32) DEFAULT NULL,
+  `updated_on` datetime DEFAULT NULL,
+  `version_optimized_lock` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=143 DEFAULT CHARSET=utf8
+
+
+CREATE TABLE `sh_bind_card_request` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(30) NOT NULL COMMENT 'user_id',
+  `status` int(4) NOT NULL COMMENT '订单状态',
+  `b_book_serial` varchar(32) DEFAULT NULL COMMENT '订单号',
+  `b_organ_id` varchar(4) DEFAULT NULL COMMENT '银行编号',
+  `tran_date` datetime DEFAULT NULL COMMENT '交易日期',
+  `busin_type` varchar(4) DEFAULT NULL COMMENT '业务类型',
+  `money_kind` varchar(4) DEFAULT NULL COMMENT '币种',
+  `client_kind` varchar(4) DEFAULT NULL COMMENT '客户类型0-个人1-企业',
+  `secu_acct` varchar(50) DEFAULT NULL COMMENT 'P2P资金账号',
+  `acct_type` varchar(4) DEFAULT NULL COMMENT '客户账户类型',
+  `client_name` varchar(250) DEFAULT NULL COMMENT '客户姓名',
+  `id_kind` varchar(4) DEFAULT NULL COMMENT '证件类型1身份证8组织机构代码9营业执照',
+  `id_code` varchar(60) DEFAULT NULL COMMENT '证件号码',
+  `client_acct` varchar(60) DEFAULT NULL COMMENT '银行结算账户银行卡号',
+  `bank_code` varchar(60) DEFAULT NULL COMMENT '联行行号',
+  `bankd_name` varchar(250) DEFAULT NULL COMMENT '联行行名',
+  `bk_mobile_no` varchar(50) DEFAULT NULL COMMENT '银行预留手机号',
+  `u_client_flag` varchar(4) DEFAULT NULL COMMENT '余额理财标志',
+  `s_msg_code` varchar(20) DEFAULT NULL COMMENT '短信验证码',
+  `summary` varchar(250) DEFAULT NULL COMMENT '摘要',
+  `register_mobile` varchar(50) DEFAULT NULL COMMENT '注册手机号',
+  `verify_amt` decimal(15,2) DEFAULT NULL COMMENT '企业打款验证金额',
+  `request_from` varchar(4) NOT NULL COMMENT 'requestFrom',
+  `return_order_no` varchar(32) DEFAULT NULL,
+  `return_error_no` varchar(10) DEFAULT NULL COMMENT 'errorNo返回码',
+  `return_error_info` varchar(100) DEFAULT NULL COMMENT 'errorInfo失败原因',
+  `return_date` datetime DEFAULT NULL COMMENT 'date监管交易日期',
+  `return_b_serial` varchar(8) DEFAULT NULL COMMENT 'bSerial监管流水号',
+  `return_bank_serial` varchar(20) DEFAULT NULL COMMENT 'bankSerial银行流水号',
+  `return_e_sub_account` varchar(100) DEFAULT NULL COMMENT 'eSubAccount E子账户号',
+  `created_by` varchar(32) DEFAULT NULL,
+  `created_on` datetime DEFAULT NULL,
+  `updated_by` varchar(32) DEFAULT NULL,
+  `updated_on` datetime DEFAULT NULL,
+  `version_optimized_lock` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8
+
+
+CREATE TABLE `sp_user` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sh_account_id` varchar(50) DEFAULT NULL,
+  `UMPAY_ID` varchar(35) DEFAULT NULL,
+  `UMPAY_ACCOUNT_ID` varchar(50) DEFAULT NULL,
+  `LOGIN_NAME` varchar(30) NOT NULL,
+  `UMPAY_NAME` varchar(30) DEFAULT NULL COMMENT '昵称',
+  `REAL_NAME` varchar(30) DEFAULT NULL,
+  `IDCARD_CODE` varchar(50) DEFAULT NULL,
+  `idcard_type` varchar(4) DEFAULT NULL COMMENT '用户证件类型',
+  `STATUS` tinyint(2) NOT NULL,
+  `type` tinyint(1) NOT NULL DEFAULT '0',
+  `PASSWORD` varchar(80) NOT NULL DEFAULT '',
+  `SECURITY_SALT` varchar(20) DEFAULT NULL,
+  `REGISTER_TIME` datetime NOT NULL,
+  `SAFE_QUESTION` varchar(30) DEFAULT NULL,
+  `SAFE_ANSWER` varchar(30) DEFAULT NULL,
+  `BIND_MOBILE` varchar(50) DEFAULT NULL,
+  `BIND_EMAIL` varchar(100) DEFAULT NULL,
+  `channel` varchar(20) DEFAULT NULL,
+  `head_img` varchar(256) DEFAULT NULL COMMENT '头像url',
+  `risk_prefer` int(2) unsigned DEFAULT NULL COMMENT '风险偏好类型',
+  `risk_endure` int(2) unsigned DEFAULT NULL COMMENT '风险承受类型',
+  `risk_invest_type` int(2) unsigned DEFAULT NULL COMMENT '投资风险类型',
+  `LAST_LOGIN_TIME` datetime DEFAULT NULL,
+  `LAST_LOGIN_IP` varchar(20) DEFAULT NULL,
+  `CREATED_BY` varchar(32) NOT NULL,
+  `CREATED_ON` datetime NOT NULL,
+  `UPDATED_BY` varchar(32) DEFAULT NULL,
+  `UPDATED_ON` datetime DEFAULT NULL,
+  `VERSION_OPTIMIZED_LOCK` int(11) NOT NULL,
+  `platform_type` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `login_name唯一` (`LOGIN_NAME`),
+  KEY `BINDMOBILE` (`BIND_MOBILE`)
+) ENGINE=InnoDB AUTO_INCREMENT=94941390 DEFAULT CHARSET=utf8
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+信息系统生命周期包括信息系统开发、运行和维护三个部分，其中系统开发又是运行和维护的基础，对系统开发进行审计能够从源头出发减少出现错弊的可能性，对信息系统开发阶段进行审计有助于审计机关全面履行审计职责。
+
+
+
+
+
+
+
+
+信息系统开发审计是指对信息系统本身开发过程进行的审计，按照信息系统开发流程进行，分为系统规划审计、需求分析审计、系统设计审计、系统编码审计、系统测试审计和系统试运行审计这六个阶段。信息系统开发审计的方法包括问卷调查法、文档审阅法、面谈法、流程图检查法、功能与需求对比法、系统描述法、编码检查法、测试数据法等，其中问卷调查法、文档审阅法和面谈法在在系统开发审计各阶段均可使用，而其他方法则在各阶段各有侧重，详见下图所示：
+　     方法
+ 
+ 
+阶段
+问卷调查法
+文档审阅法
+面谈法
+流程图检查法
+功能与需求对比法
+系统描述法
+编码检查法
+测试数据法
+系统规划审计
+√
+√
+√
+　
+　
+　
+　
+　
+需求分析审计
+√
+√
+√
+√
+√
+　
+　
+　
+系统设计审计
+√
+√
+√
+　
+　
+√
+　
+　
+系统编码审计
+√
+√
+√
+　
+　
+　
+√
+　
+系统测试审计
+√
+√
+√
+　
+　
+　
+　
+√
+系统试运行审计
+√
+√
+√
+　
+　
+　
+　
+　
+ 
+（一）系统规划审计
+系统规划阶段的审计目标：了解开发新系统的背景和目的，审查系统审批是否符合规定程序，系统建设是否符合组织战略规划，可行性研究是否充分，是否按步骤进行，有无跳过某些必要的关键步骤等。系统规划审计使用的方法包括：
+1．问卷调查法。
+设计系统规划阶段审计调查问卷，对系统规划阶段的主要工作和控制点进行调查了解，如有没有明确说明信息系统的整体概貌，能否随经营环境的变化而得到修正，是否明确说明信息系统的开发目的、性能价格比和整体效果等，综合分析系统规划的合规性、规范性。
+2．文档审阅法。
+审阅可行性研究报告、系统分析说明书、现状分析报告、输入输出和代码调查表等文档，审查上述文档是否完整、正确，是否符合《信息技术软件生存周期过程》（GB/T8566-2007或GB/T8566-2007）等国家标准；审查系统建设是否符合战略规划，可行性研究是否充分。审阅系统立项文件，审查立项申请是否经管理机构和负责人批准，立项审批是否符合规定的程序；审阅招投标文件，审查项目招标是否符合国家有关规定。
+3．面谈法。
+审计人员是通过与被审计单位及软件开发商等有关系统开发人员进行面谈，重点掌握两方面信息，一方面是新开发的信息系统是否满足企业战略发展的需要，另一方面是新系统从技术、经济和操作的角度是否是可行的。
+（二）需求分析审计
+需求分析阶段审计的目标：审查信息系统是否充分满足业务需求和用户需求，是否经过需求评审，审查信息系统需求变更是否受控等。需求分析审计使用的方法包括：
+1．流程图检查法。
+主要是详实审阅资料的基础上借助系统开发人员的技术帮助，准确绘制出信息系统核心处理数据流程图，通过该方法，达到了快速掌握信息系统关键数据处理流程的重要目标，对系统的总体情况有一定了解。
+2．功能与需求对比法。
+通过绘制系统数据流程图，分析信息系统所具备的全部系统功能，通过系统功能与业务需求的对比分析，检查系统功能是否能够完全满足业务的要求。
+3．文档审阅法、面谈法。
+审阅需求规格说明书、数据流图、实体关系图、状态变换图、对话框图、交互作用图等项目视图和范围文档、使用实例文档等文档，审查上述文档是否符合国家有关技术标准，如软件需求规格说明书是否满足IEEE标准830-1998（IEEE 1998），业务需求、用户需求和功能需求是否得到充分体现，需求分析过程是否包括需求调研、需求分析、需求验证和需求评审等阶段。面谈法目标和文档审阅法基本一致，审计人员通过与被审计单位及软件开发商有关系统开发人员进行面谈，如询问实际运行中所需功能是否在需求分析中得以体现，是否存在缺陷等问题。
+（三）系统设计审计
+系统设计阶段审计的目标：审查系统设计是否满足系统规划和需求分析阶段确定的系统目标和功能，系统设计是否符合国家有关技术标准和规范，系统设计是否存在重要问题和漏洞。系统设计审计使用的方法包括：
+1．系统描述法。
+审计人员可以通过适当的描述方法，对系统结构和功能进行描述，并与系统有关设计文档进行对比分析，从而确定系统设计的正确性和完整性。系统描述的方法又可以分为三类：文字描述法、表格描述法、图形描述法。三种方法各有优缺点，文字描述法可以对系统进行较为深入具体的描述，但有时文字表述难以简洁明了，显得比较冗赘；表格描述法能对系统作出一个简洁明确的概括说明，编制也较方便，有利于审计人员进行分析评价，但由于系统的特殊性，设置标准问题的表格往往适用性有限，且只能按项目分别考察，不能提供一个完整的意见。图形描述法可以比较形象的表现系统的处理流程，易与相关设计文档的对比，但绘制图形需要具备娴熟的技术并花费较多时间，对审计机关技术、人力资源提出较高要求。在具体审计中，可以采用多种描述方法相结合的方式，全面清晰的对系统结构和功能进行描述。
+
+
+
+
+
+
+
+
+/platuser/userBehaviorControl/list
+
+/platuser/userBehaviorControl/add
+
+/platuser/userBehaviorControl/edit
+
+
+a4a81e7 HEAD@{5}: commit: DAOK-2393 控制用户的充值提现投资等功能
+ce68c3b HEAD@{6}: commit: DAOK-2393 控制用户的充值提现投资等功能
+7a9d872 HEAD@{7}: commit: DAOK-2393 控制用户的充值提现投资等功能
+
+
+3.3.4开发代码，由：
+开发人员、测试人员与技术负责人讨论，确定该提案开发分支和技术实现方案，确定前后端接口标准，如该提案需要编写设计文档（JIRA备注中已说明是否需要该文档），开发人员需要首先编写设计文档，并将其补充至WIKI系统及代码结构介绍中。
+调整为：
+开发人员、测试人员进行内部讨论，确定该提案开发分支，如提案开发涉及对数据库表结构进行调整，或对数据库有增删改操作的，需要先确定并编写技术实现方案到wiki中，并将wiki链接发送到QQ技术群，以便其他开发人员进行评审，如后者没有提出异议，开发人员按照确定的开发方案进行开发，如需调整，则调整后开发。涉及到需要前后端进行联调的，需在开发前确定前后端接口标准并将其补充到wiki当中。
+
+标题：直接使用JIRA即可；
+需求简述：简要概括即可，如比较多，可以直接放JIRA链接；
+主要逻辑说明：简要说明关键点即可；
+缓存的使用（如有）：简要说明缓存的使用及更新策略；
+数据库相关说明：涉及数据的相关变动
+
+107307;97676;99416
+
+66400;98261;9054;68137;15767;109191;104603;94636;52554;104514;54355;107298;87918;1577;107307;97676;99416;
+
+95751;77639;51619;16109;
+68071;
+98257;
+8750;
+533;
+13590;
+99093;
+113490;
+14036;
+7073;
+
+
+
+
+今天早上7点半到现在，招商银行用户提现，申请成功，最终报错：1808：提交支付系统成功,支付系统处理失败,将后续退回，还请麻烦确认下原因。
+喻老师昨天提醒的，招商银行在21日2:00-7:00进行系统升级，不知道是否提前？对接的其他渠道是否有同样问题？
+
+
+订单号：W2017052006101665 请求时间：2017-05-20 08:12:20 用户开户行：招商银行股份有限公司杭州分行
+订单号：W2017052006111046 请求时间：2017-05-20 10:11:12 用户开户行：招商银行股份有限公司佛山财富支行
+
+
+2017-05-22 11:00:21.941 INFO  [http-bio-8080-exec-93]:framework.log.DkdLogger.info()36 -  ( FddClientUtil.java : 39 ) {logInfo:{"position":"params:[{\"name\":\"app_id\",\"value\":\"000282\"},{\"name\":\"timestamp\",\"value\":\"20170522110021\"},{\"name\":\"v\",\"value\":\"2.0\"},{\"name\":\"customer_name\",\"value\":\"刘伟伟\"},{\"name\":\"email\",\"value\":\"\"},{\"name\":\"ident_type\",\"value\":\"0\"},{\"name\":\"id_mobile\",\"value\":\"C4B3585D19AA8E1E430F38CF5DCBDA22B1903317D40B9B316609998D13C1A44B\"},{\"name\":\"msg_digest\",\"value\":\"M0U1RDBCNzIzQUZGOUE2OTVCRkVCODMzQjEzREE0RTE2RTAzRTIxQQ==\"}]\nurl:https://extapi.fadada.com/api2/syncPerson_auto.api","reqParam":[]}}
+2017-05-22 11:00:21.984 INFO  [http-bio-8080-exec-122]:base.xmemcached.MemcachedService.getValue()69 -  memcacheService getValue from key:access_token_5c848948eee74d1e867f851479d8eb99  耗时:1毫秒 
+
+dkd_contract_2250
+
+448754.33
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- 单笔金额
+select * from (
+SELECT 
+	b.trans_id, b.user_id, b.amt, b.ret_code, b.ret_msg, b.created_on, c.account_name, c.bank_code, d.bank_name
+FROM
+    (SELECT 
+        *
+    FROM
+        sp_charge_request
+    WHERE 1=1
+        and CREATED_ON > '2017-05-01’ 
+        and CREATED_ON < '2017-05-24’ 
+        and trans_status = 1
+        and pay_type = 3
+        ) b,
+    (SELECT 
+        user_id, account_name, bank_code
+    FROM
+        (SELECT *
+			FROM
+			sh_bind_bank_account
+			WHERE
+			bank_account_type = 0
+			and status = 1) a) c,
+    (SELECT 
+        *
+    FROM
+        sh_bank_info
+        WHERE
+        bank_name LIKE ‘%建设银行%') d
+WHERE 1=1
+	and b.user_id = c.user_id
+	AND c.bank_code = d.bank_code
+ORDER BY b.id DESC
+
+)e order by amt desc limit 1;
+
+-- 单日金额
+select  user_id, substr(CREATED_ON, 1,10), sum(amt) from (
+SELECT 
+	b.trans_id, b.user_id, b.amt, b.ret_code, b.ret_msg, b.created_on, c.account_name, c.bank_code, d.bank_name
+FROM
+    (SELECT 
+        *
+    FROM
+        sp_charge_request
+    WHERE 1=1
+        and CREATED_ON > '2017-05-01’ 
+        and CREATED_ON < '2017-05-24’ 
+        and trans_status = 1
+        and pay_type = 3
+        ) b,
+    (SELECT 
+        user_id, account_name, bank_code
+    FROM
+        (SELECT *
+			FROM
+			sh_bind_bank_account
+			WHERE
+			bank_account_type = 0
+			and status = 1) a) c,
+    (SELECT 
+        *
+    FROM
+        sh_bank_info
+        WHERE
+        bank_name LIKE ‘%建设银行%') d
+WHERE 1=1
+	and b.user_id = c.user_id
+	AND c.bank_code = d.bank_code
+ORDER BY b.id DESC
+
+)e group by user_id, substr(CREATED_ON, 1,10) order by sum(amt) desc limit 1;
+
+-- 单月金额
+select  user_id, substr(CREATED_ON, 1,7), sum(amt) from (
+SELECT 
+	b.trans_id, b.user_id, b.amt, b.ret_code, b.ret_msg, b.created_on, c.account_name, c.bank_code, d.bank_name
+FROM
+    (SELECT 
+        *
+    FROM
+        sp_charge_request
+    WHERE 1=1
+        and CREATED_ON > '2017-01-01’ 
+        and CREATED_ON < '2017-05-24’ 
+        and trans_status = 1
+        and pay_type = 3
+        ) b,
+    (SELECT 
+        user_id, account_name, bank_code
+    FROM
+        (SELECT *
+			FROM
+			sh_bind_bank_account
+			WHERE
+			bank_account_type = 0
+			and status = 1) a) c,
+    (SELECT 
+        *
+    FROM
+        sh_bank_info
+        WHERE
+        bank_name LIKE ‘%建设银行%') d
+WHERE 1=1
+	and b.user_id = c.user_id
+	AND c.bank_code = d.bank_code
+ORDER BY b.id DESC
+
+)e group by user_id, substr(CREATED_ON, 1,7) order by sum(amt) desc limit 1;
+
+
+amount
+
+
+
+select * from (
+SELECT 
+	b.id, b.user_id, b.amt, b.ret_code, b.ret_msg, b.created_on, d.bank_name
+FROM
+    (SELECT 
+        *
+    FROM
+        sp_charge_request
+    WHERE 1=1
+        and CREATED_ON > '2017-05-01'
+       
+        and trans_status = 1
+        and pay_type = 3
+        ) b,
+    (SELECT 
+        user_id, account_name, bank_code
+    FROM
+        (SELECT *
+			FROM
+			sh_bind_bank_account
+			WHERE
+			bank_account_type = 0
+			and status = 1) a) c,
+    (SELECT 
+        *
+    FROM
+        sh_bank_info
+        WHERE
+        bank_name LIKE ‘%中国银行%') d
+WHERE 1=1
+	and b.user_id = c.user_id
+	AND c.bank_code = d.bank_code
+ORDER BY b.id desc
+
+)e limit 200;
+
+
+
+各位老师好，我们部分绑卡为中国银行的用户代扣超时，返回结果为“5224-代扣超时: [03:[9200002]Communication timeout, failed to get response.]”，麻烦确认下原因，部分订单信息如下：
+订单号：C2017052406209565 请求时间：2017-05-24 11:04:50 对应的E账户 ：623185009300203590
+订单号：C2017052406192609	 请求时间：2017-05-24 09:11:33 对应的E账户：623185009300018204
+订单号：C2017052406192601  请求时间：2017-05-24 09:09:32 对应的E账户：623185009300010870
+
+5224	代扣超时: [60:交易失败，详情请咨询您的发卡行[1000068]]
+5224	代扣超时: [03:[9200002]Communication timeout, failed to get response.]
+
+订单号：C2017052406209565 请求时间：2017-05-24 11:04:50 对应的E账户 ：623185009300203590
+订单号：C2017052406192609 请求时间：2017-05-24 09:11:33 对应的E账户：623185009300018204
+订单号：C2017052406192601  请求时间：2017-05-24 09:09:32 对应的E账户：623185009300010870
+
+
+
+
+
+看了下最近几天的回款情况，同时考虑到法透户金额共享的问题，有两个放标小建议，供参考
+1.法透户未被击穿前：标尽量早放一些，抢用授信额度；
+2.法透户被击穿后：可以将标放到10点，11点等每天的尽早时间，让用户可以尽量多用回款的钱投资。
+
+
+firstInvestUserNum
+
+withdrawAmt
+
+inflowAmt
+
+availableAmt
+
+INVEST_AMT("investAmt", "投资金额"),
+    INVESTUSER_NUM("investUserNum","投资人数"),
+    AVERAGE_INVEST_AMT("averageInvestAmt","人均投资金额"),
+    FIRST_INVEST_USER_NUM("firstInvestUserNum","当日首投人数"),
+    TORETURN_CAPITAL_AMT("toReturnCapitalAmt","在贷余额"),
+    WITHDRAW_AMT("withdrawAmt","资金流出"),
+    CHARGE_AMT("chargeAmt","资金流入"),
+    INFLOW_AMT("inflowAmt","资金净流入"),
+    AVAILABLE_AMT("availableAmt","可用余额"),
+
+
+
+REGISTER_NUM("registerNum","新增注册"),
+    INVITED_REGISTER_NUM("invitedRegisterNum","受邀注册"),
+    FIRST_INVEST_NUM("firstInvestNum","新增首投"),
+    INVITED_FIRST_INVEST_NUM("invitedFirstInvestNum","受邀首投"),
+    SH_USER_NUM("shUserNum","shUserAmt"),
+    BINDCARD_NUM("bindcardNum","新增绑卡"),
+    BINDCARD_FAILED_NUM("bindcardFailedNum","绑卡失败"),
+    SHREGISTER_FAILED_NUM("shRegisterFailedNum","开户失败")
+
+
+-Xms512m -Xmx1024m -XX:PermSize=256m -XX:MaxPermSize=512m
+
+http://localhost:8080/manage/addRemindFlagCache?validMinutes=600
+
+
+
+
+
+
+
+@郭科林 @郑明 @林银龙
+目前授信额度仍未恢复，已经与上行老师沟通，上行授信额度一旦恢复，会及时告知我们。
+由于恢复预计在10点后，目前10点放标已达到5个，建议将其整体向后推迟2小时。
+
+
+
+@林银龙-运营 @李伟-客服 @李文芳-客服  @郭科林-资产 @郑明-资产
+上行老师告知，目前还剩150万授信额度，这部分额度用完之后，要等明天才能恢复正常的投资及提现了。明天的恢复时间在预估会超过10点。
+建议
+1.今天不在发新标；
+2.明天发标建议先在11点发1个标，待上行恢复后，再调整成正常的发标。
+
+还请评估
+
+
+这个列上吧，我按照过代码的方案调整下
+DAOK-2098 汇总账户流水监控
+另外+
+DAOK-2510 后台数据-summary近7日详情
+
+
+
+728ad89 HEAD@{4}: commit: DAOK-2098 汇总账户流水监控
+
+
+
+
+REGISTER_NUM("registerNum","新增注册"),
+    INVITED_REGISTER_NUM("invitedRegisterNum","受邀注册"),
+    FIRST_INVEST_NUM("firstInvestNum","新增首投"),
+    INVITED_FIRST_INVEST_NUM("invitedFirstInvestNum","受邀首投"),
+    SH_USER_NUM("shUserNum","新增上行开户"),
+    BINDCARD_NUM("bindcardNum","新增绑卡"),
+    BINDCARD_FAILED_NUM("bindcardFailedNum","绑卡失败"),
+    SHREGISTER_FAILED_NUM("shRegisterFailedNum","开户失败"),
+
+
+
+
+第五条 根据我行信息科技治理的要求，法定代表人是本机构信息科技风险管理的第一责任人，负责组织本管理办法的贯彻落实, 董事会应履行以下信息科技管理职责：  （一） 遵守并贯彻执行国家有关信息科技管理的法律、法规和技术标准，落实中国银行业监督管理委员会（以下简称银监会）相关监管要求。  （二） 审查批准信息科技战略，确保其与银行的总体业务战略和重大策略相一致。评估信息科技及其风险管理工作的总体效果和效率。  （三） 掌握主要的信息科技风险，确定可接受的风险级别，确保相关风险能够被识别、计量、监测和控制。  （四） 规范职业道德行为和廉洁标准，增强内部文化建设，提高全体人员对信息科技风险管理重要性的认识。  （五） 设立一个由来自高级管理层、信息科技部门和主要业务部门的代表组成的专门信息科技管理委员会，负责监督各项职责的落实，定期向董事会和高级管理层汇报信息科技战略规划的执行、信息科技预算和实际支出、信息科技的整体状况。
+（六） 在建立良好的公司治理的基础上进行信息科技治理，形成分工合理、职责明确、相互制衡、报告关系清晰的信息科技治理组织结构。加强信息科技专业队伍的建设，建立人才激励机制。  （七） 确保内部审计部门进行独立有效的信息科技风险管理审计，对审计报告进行确认并落实整改。  （八） 每年审阅并向银监会及其派出机构报送信息科技风险管理的年度报告。  （九） 确保信息科技风险管理工作所需资金。  （十） 确保银行所有员工充分理解和遵守经其批准的信息科技风险管理制度和流程，并安排相关培训。  （十一） 确保本法人机构涉及客户信息、账务信息以及产品信息等的核心系统在中国境内独立运行，并保持最高的管理权限，符合银监会监管和实施现场检查的要求，防范跨境风险。  （十二） 及时向银监会及其派出机构报告本机构发生的重大信息科技事故或突发事件，按相关预案快速响应。  （十三） 配合银监会及其派出机构做好信息科技风险监督检查工作，并按照监管意见进行整改。  （十四） 履行信息科技风险管理其他相关工作。 
+
+
+
+
+
+
+第七条 科技部负责我行信息安全、信息系统开发、测试和维护、信息科技运行、业务连续性管理；应对内部管理职责进行明确的界定，各岗位的人员应具有相应的专业知识和技能，重要岗位应制定详细完整的工作手册并适时更新，并对相关人员采取相关的风险防范措施：
+
+(一) 验证个人信息，包括核验有效身份证件、学历证明、工作经历和专业资格证书等信息。  (二) 审核信息科技员工的道德品行，确保其具备相应的职业操守。  (三) 确保员工了解、遵守信息科技策略、指导原则、信息保密、授权使用信息系统、信息科技管理制度和流程等要求，并同员工签订相关协议。  (四) 评估关键岗位信息科技员工流失带来的风险，做好安排候补员工和岗位接替计划等防范措施；在员工岗位发生变化后及时变更相关信息。
+
+第八条 运营管理部职能交叉，要部门协调是信息系统中涉及账务交易的操作、系统参数变更、事件管理的主要部门。运营管理部的职责包括：  (一)  运行与维护应实行职责分离，运行人员应实行专职，不 得由其他人员兼任。运行人员应按操作规程巡检和操作。维护人员应按授权和维护规程要求对生产状态的软硬件、数据进行维护，除应急外，其他维护应在非工作时间进行。  (二)  制定详细的运行值班操作表，包括规定巡检时间，操作 范围、内容、办法、命令以及负责人员等信息。
+
+(三) 提供机房环境、设备使用、网络运行、系统运行职能交 叉，要部门协调等监控信息。  (四) 记录运行值班过程中所有现象、操作过程等信息日志。 (五)  对软件或数据的维护必须通过特定的应用程序进行，添 加、删除和修改数据应通过柜员终端，不得对数据库进行直接操作；  (六)  具备各种详细的日志信息，包括交易日志和审计日志 等，以便维护和审计。  (七) 提供维护的统计和报表打印功能。 (八)  对系统参数等设臵变更、维护的要求：  1、 应对信息系统配臵参数实施严格的安全与保密管理，防止非法生成、变更、泄漏、丢失与破坏。根据敏感程度和用途，确定存取权限、方式和授权使用范围，严格审批和登记手续。  2、 制订严密的变更处理流程，明确变更控制中各岗位的职责，并遵循流程实施控制和管理；变更前应明确应急和回退方案，无授权不得进行变更操作；  3、 根据变更需求、变更方案、变更内容核实清单等相关文档审核变更的正确性、安全性和合法性。职能交叉，要部门协调 
+
+(九) 应对机房环境设施实行日常巡检，明确信息系统及机房 环境设施出现故障时的应急处理流程和预案，有实时交易服务的数据中心应实行24小时值班。  (十)  实行事件报告制度，发生信息系统造成重大经济、声誉 损失和重大影响事件，应即时上报并处理，必要时启动应急处理预案。  第九条 风险管理部负责信息科技风险管理工作，并直接向分管行领导（风险管理委员会）报告工作。该部门应为信息科技突发事件应急响应小组的成员之一，负责协调制定有关信息科技风险管理策略，尤其是在涉及信息安全、业务连续性计划和合规性风险等方面，为业务部门和信息科技部门提供建议及相关合规性信息，实施持续信息科技风险评估，跟踪整改意见的落实，监控信息安全威胁和不合规事件的发生。风险管理部的职责包括：  (一)  拟定信息系统风险管理总体政策，并提交高级管理层审 查、审批。  (二) 会同相关业务部门对信息系统风险进行识别、监测； (三)  审核信息系统风险状况。对总行相关业务部门和分支机 构信息系统风险状况及维护、运行情况进行监测，并进行实时报告。 
+
+
+第十一条 我行应制定全面的信息科技风险管理策略，包括但不限于下述领域：  (一) 信息分级与保护。 (二) 信息系统开发、测试和维护。 (三) 信息科技运行和维护。 (四) 访问控制。 (五) 物理安全。 (六) 人员安全。  (七)  业务连续性计划与应急处臵。
+
+第十三条 我行应依据信息科技风险管理策略和风险评估结果，实施全面的风险防范措施。防范措施应包括：  (一)  制定明确的信息科技风险管理制度、技术标准和操作规 程等，定期进行更新和公示。  (二)  确定潜在风险区域，并对这些区域进行详细和独立的监 控，实现风险最小化。建立适当的控制框架，以便于检查和平衡风险；定义每个业务级别的控制内容，包括：  1、 最高权限用户的审查。  2、 控制对数据和系统的物理和逻辑访问。  3、 访问授权以“必需知道”和“最小授权”为原则。 4、 审批和授权。 5、 验证和调节。  第十四条 我行应建立持续的信息科技风险计量和监测机制，其中应包括： 
+
+第十五条 科技部负责建立和实施信息分类和保护体系，应使所有员工都了解信息安全的重要性，并组织提供必要的培训，让员工充分了解其职责范围内的信息保护流程。  第十六条 科技部应落实信息安全管理职能。该职能应包括建立信息安全计划和保持长效的管理机制，提高全体员工信息安全意识，就安全问题向其他部门提供建议，并定期向信息科技管理委员会提交本银行信息安全评估报告。信息安全管理机制应包括信息安全标准、策略、实施计划和持续维护计划。信息安全策略应涉及以下领域： 
+
+
+制度体系文件  信息科技风险管理办法              版次号： A/0                委员会提交本银行信息安全评估报告。信息安全管理机制应包括信息安全标准、策略、实施计划和持续维护计划。信息安全策略应涉及以下领域：  (一) 安全制度管理。 (二) 信息安全组织管理。 (三) 资产管理。 (四) 人员安全管理。 (五) 物理与环境安全管理。 (六) 通信与运营管理。 (七) 访问控制管理。 (八) 系统开发与维护管理。 (九) 信息安全事故管理。 (十)  业务连续性管理。  (十一) 合规性管理。 
+
+
+
+第二十条 应通过以下措施，确保所有计算机操作系统和系统软件的安全：  (一)  制定每种类型操作系统的基本安全要求，确保所有系统 满足基本安全要求。  (二)  明确定义包括终端用户、系统开发人员、系统测试人员、 计算机操作人员、系统管理员和用户管理员等不同用户组的访问权限。  (三)  制定最高权限系统账户的审批、验证和监控流程，并确 保最高权限用户的操作日志被记录和监察。  (四) 要求技术人员定期检查可用的安全补丁，并报告补丁管 理状态。  (五)  在系统日志中记录不成功的登录、重要系统文件的访问、对用户账户的修改等有关重要事项，手动或自动监控系统出现的任何异常事件，定期汇报监控情况。  第二十一条 应通过以下措施，确保所有信息系统安全： (一)  明确定义终端用户和信息科技技术人员在信息系统安 全中的角色和职责。  (二) 针对信息系统的重要性和敏感程度，采取有效的身份验 证方法。
+
+
+第二十二条 应制定相关策略和流程，管理所有生产系统的活动日志，以支持有效的审核、安全取证分析和预防欺诈。日志可以在软件的不同层次、不同的计算机和网络设备上完成，日志划分为两大类：  (一)  交易日志。交易日志由应用软件和数据库管理系统产生，内容包括用户登录尝试、数据修改、错误信息等。交易日志应按照国家会计准则要求予以保存。  (二)  系统日志。系统日志由操作系统、数据库管理系统、防 火墙、入侵检测系统和路由器等生成，内容包括管理登录尝试、系统事件、网络事件、错误信息等。系统日志保存期限按系统的风险等级确定，但不能少于一年。  第二十三条 应保证交易日志和系统日志中包含足够的内容，以便完成有效的内部控制、解决系统故障和满足审计需要；应采取适当措施保证所有日志同步计时，并确保其完整性。在例外情况发生后应及时复查系统日志。交易日志或系统日志的复查频率和保存周期应由信息科技部门和有关业务部门共同决定，并报信息科技管理委员会批准。  第二十四条 应采取加密技术，防范涉密信息在传输、处理、存储过程中出现泄露或被篡改的风险，并建立密码设备管理制度，以确保：   (一) 使用符合国家要求的加密技术和加密设备。  (二) 管理、使用密码设备的员工经过专业培训和严格审查。 (三) 加密强度满足信息机密性的要求。  (四) 制定并落实有效的管理流程，尤其是密钥和证书生命周 期管理。  第二十五条 配备切实有效的系统，确保所有终端用户设备的安全，并定期对所有设备进行安全检查，包括台式个人计算机（PC）、便携式计算机、柜员终端、自动柜员机（ATM）、存折打印机、读卡器、销售终端（POS）和个人数字助理（PDA）等。  第二十六条 制定相关制度和流程，严格管理客户信息的采集、处理、存贮、传输、分发、备份、恢复、清理和销毁。  第二十七条 对所有员工进行必要的培训，使其充分掌握信息科技风险管理制度和流程，了解违反规定的后果，并对违反安全规定的行为采取零容忍政策。
+
+第五章 信息系统开发、测试和维护  
+
+第二十八条 应有能力对信息系统进行需求分析、规划、采购、开发、测试、部署、维护、升级和报废，制定制度和流程，管理信息科技项目的优先排序、立项、审批和控制。项目实施部门应定期向信息科技管理委员会提交重大信息科技项目的进度报告，由其进行审核，进度报告应当包括计划的重大变更、关键人员或供应商的变更以及主要费用支出情况。应在信息系统投产后一定时期内，组织对系统的后评价，并根据评价结果及时对系统功能进行调整和优化。  第二十九条 应认识到信息科技项目相关的风险，包括潜在的各种操作风险、财务损失风险和因无效项目规划或不适当的项目管理控制产生的机会成本，并采取适当的项目管理方法，控制信息科技项目相关的风险。
+第三十条 采取适当的系统开发方法，控制信息系统的生命周期。典型的系统生命周期包括系统分析、设计、开发或外购、测试、试运行、部署、维护和退出。所采用的系统开发方法应符合信息科技项目的规模、性质和复杂度。  第三十一条 制定相关控制信息系统变更的制度和流程，确保系统的可靠性、完整性和可维护性，其中应包括以下要求：  (一) 生产系统与开发系统、测试系统有效隔离。 (二) 生产系统与开发系统、测试系统的管理职能相分离。 (三)  除得到管理层批准执行紧急修复任务外，禁止应用程序 开发和维护人员进入生产系统，且所有的紧急修复活动都应立即进行记录和审核。  (四)  将完成开发和测试环境的程序或系统配臵变更应用到 生产系统时，应得到信息科技部门和业务部门的联合批准，并对变更进行及时记录和定期复查。  (五)  制定并落实相关制度、标准和流程，确保信息系统开发、 测试、维护过程中数据的完整性、保密性和可用性。  第三十二条 建立并完善有效的问题管理流程，以确保全面地追踪、分析和解决信息系统问题，并对问题进行记录、分类和索引；如需供应商提供支持服务或技术援助，应向相关人员提供所需的合同和相关信息，并将过程记录在案；对完成紧急恢复起至关重要作用的任务和指令集，应有清晰的描述和说明，并通知相关人员。
+
+第六章 信息科技运行  
+
+第三十三条 在选择数据中心的地理位臵时，应充分考虑环境威胁（如是否接近自然灾害多发区、危险或有害设施、繁忙或主要公路），采取物理控制措施，监控对信息处理设备运行构成威胁的环境状况，并防止因意外断电或供电干扰影响数据中心的正常运行。  第三十四条 严格控制第三方人员（如服务供应商）进入安全区域，如确需进入应得到适当的批准，其活动也应受到监控；针对长期或临时聘用的技术人员和承包商，尤其是从事敏感性技术相关工作的人员，应制定严格的审查程序，包括身份验证和背景调查。  第三十五条 应将信息科技运行与系统开发和维护分离，确保信息科技部门内部的岗位制约；对数据中心的岗位和职责做出明确规定。  第三十六条 按照有关法律法规要求保存交易记录，采取必要的程序和技术，确保存档数据的完整性，满足安全保存和可恢复要求。  第三十七条 制定详尽的信息科技运行操作说明。如在信息科技运行手册中说明计算机操作人员的任务、工作日程、执行步骤，以及生产与开发环境中数据、软件的现场及非现场备份流程和要求（即备份的频率、范围和保留周期）。  第三十八条 建立事故管理及处臵机制，及时响应信息系统运行事故，逐级向相关的信息科技管理人员报告事故的发生，并进行记录、分析和跟踪，直到完成彻底的处臵和根本原因分析。我行应建立服务台，为用户提供相关技术问题的在线支持，并将问题提交给相关信息科技部门进行调查和解决。  第三十九条 建立服务水平管理相关的制度和流程，对信息科技运行服务水平进行考核。  第四十条 建立连续监控信息系统性能的相关程序，及时、完整地报告例外情况；该程序应提供预警功能，在例外情况对系统性能造成影响前对其进行识别和修正。  第四十一条 制定容量规划，以适应由于外部环境变化产生的业务发展和交易量增长。容量规划应涵盖生产系统、备份系统及相关设备。  第四十二条 及时进行维护和适当的系统升级，以确保与技术相关服务的连续可用性，并完整保存记录（包括疑似和实际的故障、预防性和补救性维护记录），以确保有效维护设备和设施。  第四十三条 制定有效的变更管理流程，以确保生产环境的完整性和可靠性。包括紧急变更在内的所有变更都应记入日志，由信息科技部门和业务部门共同审核签字，并事先进行备份,以便必要时可以恢复原来的系统版本和数据文件。紧急变更成功后,应通过正常的验收测试和变更管理流程,采用恰当的修正以取代紧急变更。
+
+第七章 业务连续性管理 
+
+ 第四十四条 根据自身业务的性质、规模和复杂程度制定适当的业务连续性规划，以确保在出现无法预见的中断时，系统仍能持续运行并提供服务；定期对规划进行更新和演练，以保证其有效性。  第四十五条 评估因意外事件导致其业务运行中断的可能性及其影响，包括评估可能由下述原因导致的破坏：  (一) 内外部资源的故障或缺失（如人员、系统或其他资产）。 (二) 信息丢失或受损。  (三)  外部事件（如战争、地震或台风等）。
+
+第四十六条 应采取系统恢复和双机热备处理等措施降低业务中断的可能性，并通过应急安排和保险等方式降低影响。  第四十七条 建立维持其运营连续性策略的文档，并制定对策略的充分性和有效性进行检查和沟通的计划。其中包括：  (一)  规范的业务连续性计划,明确降低短期、中期和长期中 断所造成影响的措施，包括但不限于:  1、 资源需求（如人员、系统和其他资产）以及获取资源的方式。  2、 运行恢复的优先顺序。  3、 与内部各部门及外部相关各方（尤其是监管机构、客户和媒体等）的沟通安排。  (二) 更新实施业务连续性计划的流程及相关联系信息。 (三) 验证受中断影响的信息完整性的步骤。  (四)  当我行的业务或风险状况发生变化时，对本条一到三进 行审核并升级。  第四十八条 我行的业务连续性计划和年度应急演练结果应由信息科技风险管理部门或信息科技管理委员会确认。
+
+
+
+第八章 外包与审计  
+
+
+第一节 外包  第四十九条 不得将我行信息科技管理责任外包，应合理谨慎监督外包职能的履行。  第五十条 实施重要外包（如数据中心和信息科技基础设施等)应格外谨慎，在准备实施重要外包时应以书面材料正式报告银监会或其派出机构。  第五十一条 在签署外包协议或对外包协议进行重大变更前，应做好相关准备，其中包括：  (一)  分析外包是否适合我行的组织结构和报告路线、业务战 略、总体风险控制，是否满足我行履行对外包服务商的监督义务。  (二)  考虑外包协议是否允许我行监测和控制与外包相关的 操作风险。  (三)  充分审查、评估外包服务商的财务稳定性和专业经验， 对外包服务商进行风险评估，考查其设施和能力是否足以承担相应的责任。  (四)  考虑外包协议变更前后实施的平稳过渡（包括终止合同 可能发生的情况）。 
+
+(五) 关注可能存在的集中风险，如多家我行共用同一外包服 务商带来的潜在业务连续性风险。  第五十二条 在与外包服务商合同谈判过程中，应考虑的因素包括但不限于：  (一) 对外包服务商的报告要求和谈判必要条件。  (二) 银行业监管机构和内部审计、外部审计能执行足够的监 督。  (三)  通过界定信息所有权、签署保密协议和采取技术防护措施保护客户信息和其他信息。  (四) 担保和损失赔偿是否充足。  (五)  外包服务商遵守我行有关信息科技风险制度和流程的 意愿及相关措施。  (六)  外包服务商提供的业务连续性保障水平，以及提供相关 专属资源的承诺。  (七) 第三方供应商出现问题时，保证软件持续可用的相关措 施。  (八)  变更外包协议的流程，以及我行或外包服务商选择变更或终止外包协议的条件，例如：
+
+
+
+
+第二节 审计  
+
+
+第五十七条 我行内部审计部门应根据业务的性质、规模和复杂程度，对相关系统及其控制的适当性和有效性进行监测。稽核审计部门应配备足够的资源和具有专业能力的信息科技审计人员，独立于我行的日常活动，具有适当的授权访问我行的记录。  第五十八条 我行内部信息科技审计的责任包括：
+(一) 制定、实施和调整审计计划，检查和评估我行信息科技 系统和内控机制的充分性和有效性。  (二) 按照第一款规定完成审计工作，在此基础上提出整改意 见。  (三) 检查整改意见是否得到落实。  (四)  执行信息科技专项审计。信息科技专项审计，是指对信息科技安全事故进行的调查、分析和评估，或审计部门根据风险评估结果对认为必要的特殊事项进行的审计。  第五十九条 我行应根据业务性质、规模和复杂程度，信息科技应用情况，以及信息科技风险评估结果，决定信息科技内部审计范围和频率。但至少应每三年进行一次全面审计。  第六十条 我行在进行大规模系统开发时，应要求信息科技风险管理部门和内部审计部门参与，保证系统开发符合本银行信息科技风险管理标准。  第六十一条 我行可以在符合法律、法规和监管要求的情况下，委托具备相应资质的外部审计机构进行信息科技外部审计。  第六十二条 在委托审计过程中，我行应确保外部审计机构能够对本银行的硬件、软件、文档和数据进行检查，以发现信息科技存在的风险，国家法律、法规及监管部门规章、规范性文件规定的重要商业、技术保密信息除外。  第六十三条 我行在实施外部审计前应与外部审计机构进行充分沟通，详细确定审计范围，不应故意隐瞒事实或阻挠审计检查。  第六十四条 银监会及其派出机构必要时可指定具备相应资质的外部审计机构对我行执行信息科技审计或相关检查。外部审计机构根据银监会或其派出机构的委托或授权对我行进行审计时，应出示委托授权书，并依照委托授权书上规定的范围进行审计。  第六十五条 外部审计机构根据授权出具的审计报告，经银监会及其派出机构审阅批准后具有与银监会及其派出机构出具的检查报告同等的效力，被审计的我行应根据该审计报告提出整改计划，并在规定的时间内实施整改。  第六十六条 我行在委托外部审计机构进行外部审计时，应与其签订保密协议，并督促其严格遵守法律法规，保守本银行的商业秘密和信息科技风险信息，防止其擅自对本银行提供的任何文件进行修改、复制或带离现场。
+
+
+
+
+investAgreementManagerServiceImpl
+
+
+
+
+
+正式环境：
+
+
+/**
+	 * 平台ID(apiId)
+	 */
+	API_ID("000282"),
+
+	/**
+	 * 密钥(secret)
+	 */
+	APP_SECRET(""),
+	/**
+	 * 版本
+	 */
+	V("2.0"),
+	/**
+	 * 地址
+	 */
+	API_URL("https://extapi.fadada.com/api2/"),
+
+
+测试环境：
+//TODO 测试数据正式环境还没来
+	API_ID("400303"),
+
+	/**
+	 * 密钥(secret)
+	 */
+	//TODO 测试数据正式环境还没来
+	APP_SECRET("QdQBWfwUMZNillid2eSEiWM0"),
+	/**
+	 * 版本
+	 */
+	V("2.0"),
+	/**
+	 * 地址
+	 */
+	API_URL("https://testapi.fadada.com:8443/api/"),
+
+
+#法大大测试环境配置
+fdd.appSecret=QdQBWfwUMZNillid2eSEiWM0
+fdd.appId=400303
+fdd.apiUrl=https://testapi.fadada.com:8443/api/
+
+
+
+
+sh_bank_info
+sp_bank_bin
+
+
+
+
+陈老师，整理了下之前
+
+
+Error Code: 20005.  ProcessId=20170708154940010154184032050352 Query error: [USER ERROR] Query must GROUP BY column.. Error stack: agg and non-agg mixedcom.taobao.garuda.network.exception.QueryException: agg and non-agg mixed  at com.taobao.garuda.localnode.base.net.Server$2.handleQuery(Server.java:100)  at com.taobao.garuda.network.service.LNService$2.handleLocalQueryEvent(LNService.java:42)  at com.taobao.garuda.network.local.TaskHandler$SplitEventListener.handleEvent(TaskHandler.java:122)  at com.taobao.garuda.network.loc
+
+
+Error Code: 20005.  ProcessId=20170708155450010154184032051274 Query error: [USER ERROR] Query must GROUP BY column.. Error stack: agg and non-agg mixedcom.taobao.garuda.network.exception.QueryException: agg and non-agg mixed  at com.taobao.garuda.localnode.base.net.Server$2.handleQuery(Server.java:100)  at com.taobao.garuda.network.service.LNService$2.handleLocalQueryEvent(LNService.java:42)  at com.taobao.garuda.network.local.TaskHandler$SplitEventListener.handleEvent(TaskHandler.java:122)  at com.taobao.garuda.network.loc
+
+
+
+
+江老师好，
+
+整理了一下上周出现的提现问题及代扣掉单问题，具体如下，烦请评估修正：
+
+提现返回码问题：
+根据严璐提供的统一支付返回码，当提现返回码为“UPATOT”或“UPRTOT”时，订单应该按照中间状态处理，而目前是按照失败处理的，烦请调整。
+
+赎回超时返回码问题：（上周大量用户反馈提现的时候，资管报错“余额不足”）：
+问题描述：对于涉及余额理财赎回的提现和投资订单（03+07），目前资管的处理逻辑是：对于赎回中间状态的订单（07），告知道口贷该订单失败，但资管仅回退03金额，不回退07金额，等到轮询明确订单状态后进行07金额回退。这样就会造成，我们对用户金额进行了全额回退（03+07），用户重复发起提现或投资，被告知余额不足。
+
+逻辑需要修正为：对于赎回中间状态的订单，返回告知道口贷订单为中间状态，待轮询确定赎回最终状态后，告知道口贷该订单为失败状态。
+
+代扣掉单问题（代扣订单直接进行了理财产品购买，资管金额没有增加，且无法通过蓝补调账）：
+问题描述：客户7月2日 14:56左右进行了一笔2000元代扣，由于互联网系统异常，导致没有将该笔订单的金额，加入到每日代扣汇总转账总金额里面，无法通过蓝补补账。
+
+逻辑建议修正为：系统可以自动找到代扣成功但未加入“每日代扣汇总转账金额”的充值订单，并将其金额加入到总金额里面。
+
+
+
+
+
+江老师好，
+
+对上周出现的投资、提现及代扣掉单等问题进行了整理，还请评估及修复，谢谢，具体如下：
+
+1.提现中间状态订单可能导致短款。
+详细描述：陈老师告知，目前对返回码为“UPATOT”或“UPRTOT”（统一支付告知为中间状态）的出金订单按失败处理，这样会造成短款：
+当客户提现出现上述中间状态后，若按失败处理，金额被回退，使得用户可以重新发起提现，如之前中间状态订单最终为成功，则客户可成功提现2次，最终短款。
+
+2.用户投资或提现失败后，重新发起，被告知“余额不足”。
+详细描述：对于涉及余额理财赎回的提现和投资订单（03+07），目前资管的处理逻辑是：对于赎回中间状态的订单（07），告知道口贷该订单失败，但资管仅回退03金额，不回退07金额，等到轮询明确订单状态后进行07金额回退。这样就会造成：我们因被告知订单失败，对金额进行了全额回退（03+07），如果用户重新发起提现或投资，在资管回退07金额之前，会被告知余额不足。
+
+3.代扣掉单的订单，无法通过系统或蓝补调账。
+详细描述：客户代扣充值，如遇到互联网系统异常，会发生未将订单涉及金额，加入到每日代扣汇总转账总金额里面，也无法通过蓝补调账，最终客户掉单无法通过系统方式修正，需要等较长时间才能被修正，导致客户资金长时间不能正常使用，需要江老师每次额外干预。
+
+
+
+
+ 
+
+
+private Long userId;
+    private String province;
+    private String city;
+    private BigInteger age;
+    private boolean gender;
+    private Date registerTime;
+    private Long inviterUserId;
+    private RequestFrom registerRequestFrom;
+    private String channel;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
